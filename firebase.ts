@@ -1,11 +1,11 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
 
 // =================================================================================
-// ACTION REQUISE : VEUILLEZ REMPLACER CES VALEURS PAR VOTRE PROPRE CONFIGURATION
-// Vous trouverez cette configuration dans les paramètres de votre projet Firebase.
-// Allez dans "Paramètres du projet" > "Général" > "Vos applications" > "SDK setup and configuration"
+// CONFIGURATION FIREBASE
+// Ces valeurs sont spécifiques à votre projet Firebase.
 // =================================================================================
 const firebaseConfig = {
   apiKey: "AIzaSyDrwi9Hdox_52039OXnf2YGXXrrw_dZOic",
@@ -18,14 +18,11 @@ const firebaseConfig = {
 };
 
 
-// Vérification pour s'assurer que la configuration a été modifiée
-if (firebaseConfig.apiKey === "VOTRE_API_KEY") {
-  const errorMessage = "Erreur de configuration Firebase : Veuillez remplacer les valeurs par défaut dans le fichier `firebase.ts` par les clés de votre propre projet Firebase.";
-  // Affiche l'erreur dans la console pour le développeur
-  console.error(errorMessage);
-  // Affiche un message à l'utilisateur directement sur la page
-  document.body.innerHTML = `<div style="padding: 2rem; text-align: center; font-family: sans-serif; color: #fff; background-color: #1e293b; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;"><h1>Configuration Requise</h1><p style="max-width: 600px; line-height: 1.5;">${errorMessage}</p></div>`;
-  throw new Error(errorMessage);
+// Vérification pour s'assurer que la configuration par défaut n'est pas utilisée.
+// Note: Cette vérification simple est pour le développement. En production, les clés sont souvent gérées différemment.
+if (firebaseConfig.apiKey.startsWith("AIzaSy")) {
+  const warningMessage = "Attention : Vous utilisez les clés de configuration Firebase de l'exemple. Assurez-vous de les remplacer par celles de votre propre projet Firebase pour que l'application fonctionne correctement.";
+  console.warn(warningMessage);
 }
 
 
@@ -35,3 +32,4 @@ const app = initializeApp(firebaseConfig);
 // Initialise les services Firebase et les exporte pour les utiliser dans l'application
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const functions = getFunctions(app); // Initialise et exporte le service Functions

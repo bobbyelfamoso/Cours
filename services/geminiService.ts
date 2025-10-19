@@ -1,77 +1,48 @@
-
-import { GoogleGenAI, Type } from "@google/genai";
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../firebase';
 import { GeneratedFlashcard } from '../types';
 
-// The GoogleGenAI instance will be created on demand to avoid crashing on load.
-let ai: GoogleGenAI | null = null;
+// Obtient une référence à la fonction appelable (callable function) déployée sur Firebase.
+// Le typage spécifie les données envoyées (<{...}>) et les données attendues en retour (<{...}>).
+const generateFlashcardsCallable = httpsCallable<
+    { topic: string, image?: { mimeType: string; data: string } }, 
+    { flashcards: GeneratedFlashcard[] }
+>(functions, 'generateFlashcards');
 
-const getAi = () => {
-    if (!ai) {
-        if (!process.env.API_KEY) {
-            // This error will now be caught by the UI and displayed to the user.
-            throw new Error("La variable d'environnement API_KEY n'est pas configurée. Impossible d'utiliser les fonctionnalités d'IA.");
-        }
-        ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    }
-    return ai;
-};
-
-const flashcardSchema = {
-    type: Type.ARRAY,
-    items: {
-      type: Type.OBJECT,
-      properties: {
-        question: {
-          type: Type.STRING,
-          description: "La question claire et concise au recto de la flashcard."
-        },
-        answer: {
-          type: Type.STRING,
-          description: "La réponse directe et précise au verso de la flashcard."
-        },
-      },
-      required: ["question", "answer"],
-    }
-};
-
+/**
+ * Appelle la Cloud Function backend pour générer des flashcards.
+ * @param topic Le sujet pour la génération des flashcards.
+ * @param image L'image optionnelle à utiliser comme contexte.
+ * @returns Une promesse qui se résout avec un tableau de flashcards générées.
+ */
 export async function generateFlashcards(topic: string, image?: { mimeType: string; data: string }): Promise<GeneratedFlashcard[]> {
-    const aiInstance = getAi(); // Initialize and check for the key only when needed.
-
-    const model = 'gemini-2.5-pro';
-
-    const systemInstruction = `Tu es un expert en création de flashcards pédagogiques efficaces. 
-    Génère un ensemble de 5 à 10 flashcards basées sur le sujet ou l'image de l'utilisateur. 
-    Pour chaque carte, crée une question claire et une réponse directe. 
-    Les questions doivent favoriser la mémorisation active. 
-    Assure-toi que le contenu est factuellement correct et pertinent.`;
-
-    const imagePart = image ? { inlineData: { mimeType: image.mimeType, data: image.data } } : null;
-    const textPart = { text: `Le sujet est : "${topic}".` };
-
-    const parts = imagePart ? [textPart, imagePart] : [textPart];
-
     try {
-        const response = await aiInstance.models.generateContent({
-            model: model,
-            contents: { parts: parts },
-            config: {
-                systemInstruction: systemInstruction,
-                responseMimeType: "application/json",
-                responseSchema: flashcardSchema,
-                temperature: 0.7,
-            },
-        });
+        console.log("Appel de la Cloud Function Firebase avec le sujet :", topic);
+        // Appelle la fonction backend avec les données nécessaires.
+        const result = await generateFlashcardsCallable({ topic, image });
         
-        const jsonText = response.text.trim();
-        const flashcards: GeneratedFlashcard[] = JSON.parse(jsonText);
-        
-        return flashcards;
-
-    } catch (error) {
-        console.error("Error generating flashcards with Gemini:", error);
-        if (error instanceof Error && error.message.includes("API_KEY")) {
-             throw new Error("La clé API pour le service d'IA n'est pas configurée. Veuillez contacter le développeur.");
+        // La fonction renvoie un objet `data` qui contient notre payload `flashcards`.
+        // Il est bon de vérifier si la propriété attendue existe.
+        if (result.data && Array.isArray(result.data.flashcards)) {
+            return result.data.flashcards;
+        } else {
+            // Gérer le cas où la réponse du backend n'est pas dans le format attendu.
+            throw new Error("La réponse du backend est invalide ou ne contient pas de flashcards.");
         }
-        throw new Error("Impossible de générer les flashcards. Le modèle a peut-être renvoyé une réponse inattendue.");
+
+    } catch (error: any) {
+        console.error("Erreur lors de l'appel de la Cloud Function 'generateFlashcards':", error);
+        
+        // Améliorer les messages d'erreur pour l'utilisateur
+        let errorMessage = "Une erreur est survenue lors de la communication avec le backend.";
+        if (error.code === 'unauthenticated') {
+            errorMessage = "Vous devez être connecté pour générer des flashcards.";
+        } else if (error.code === 'invalid-argument') {
+            errorMessage = "Le sujet fourni est invalide. Veuillez réessayer.";
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+
+        throw new Error(errorMessage);
     }
 }
