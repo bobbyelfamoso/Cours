@@ -8,7 +8,7 @@ import { getFunctions } from "firebase/functions";
 // Ces valeurs sont spécifiques à votre projet Firebase.
 // =================================================================================
 const firebaseConfig = {
-  apiKey: "AIzaSyDrwi9Hdox_52039OXnf2YGXXrrw_dZOic",
+  apiKey: "***********************************",
   authDomain: "site-flash-card-b59c4.firebaseapp.com",
   projectId: "site-flash-card-b59c4",
   storageBucket: "site-flash-card-b59c4.firebasestorage.app",
