@@ -61,8 +61,14 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
 
         try {
             const generateFlashcards = httpsCallable(functions, 'generateFlashcards');
+            
+            // Append the number of cards to the topic to make the instruction more explicit.
+            const effectiveTopic = topic.trim()
+                ? `${topic.trim()}\n\nNombre de cartes demandées : ${numCards}.`
+                : topic;
+
             const params: { topic: string, numCards: number, file?: { mimeType: string, data: string }, guestId?: string } = {
-                topic,
+                topic: effectiveTopic,
                 numCards,
             };
 
@@ -80,7 +86,8 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
             const result = await generateFlashcards(params) as { data: { flashcards: GeneratedFlashcard[] } };
             
             if (result.data.flashcards && result.data.flashcards.length > 0) {
-                setGeneratedCards(result.data.flashcards);
+                const limitedCards = result.data.flashcards.slice(0, 25);
+                setGeneratedCards(limitedCards);
                 if(!topic.trim() && file) {
                     setTopic(`Notes de ${file.name}`);
                 }

@@ -62,6 +62,39 @@ async function checkAndRecordApiCall(identifier: string) {
   });
 }
 
+// --- Récupération des Instructions Système ---
+async function getSystemInstruction(isForFile: boolean, numCards: number): Promise<string> {
+  const docId = isForFile ? "systemInstructionForFile" : "systemInstructionForTopic";
+  try {
+    const docSnap = await db.collection("prompt").doc(docId).get();
+
+    if (!docSnap.exists) {
+      console.error(`Prompt document not found: ${docId}`);
+      throw new HttpsError("not-found", `Configuration du prompt système introuvable.`);
+    }
+
+    const data = docSnap.data();
+    // D'après la capture d'écran, le nom du champ est le même que l'ID du document.
+    const promptTemplate = data?.[docId] as string;
+
+    if (!promptTemplate || typeof promptTemplate !== "string") {
+      console.error(`Invalid prompt field in document: ${docId}`);
+      throw new HttpsError("internal", `Format du prompt système incorrect.`);
+    }
+
+    // Remplace le placeholder pour le nombre de cartes.
+    return promptTemplate.replace(/{{numCards}}/g, String(numCards));
+  } catch (error) {
+    console.error(`Error fetching system instruction '${docId}':`, error);
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    // FIX: Corrected typo from HpsError to HttpsError.
+    throw new HttpsError("internal", "Impossible de récupérer le prompt système.");
+  }
+}
+
+
 // --- Cloud Function Principale ---
 export const generateFlashcards = onCall(async (request) => {
   const ai = new GoogleGenAI({ apiKey: geminiApiKey.value() });
@@ -93,44 +126,10 @@ export const generateFlashcards = onCall(async (request) => {
   // Appliquer la limitation de taux
   await checkAndRecordApiCall(identifier);
 
+  // Récupérer le prompt depuis Firestore
+  const systemInstruction = await getSystemInstruction(!!file, numCards);
+
   // Construire la requête pour Gemini
-  const systemInstructionForTopic = `# Rôle et Objectif
-Tu es un expert en sciences cognitives spécialisé dans les techniques de mémorisation, comme la répétition espacée et le rappel actif (active recall). Ta mission est de créer un jeu de flashcards d'une efficacité maximale pour aider un étudiant à maîtriser un sujet.
-# Méthodologie
-Avant de générer les cartes, tu dois suivre ce processus en 3 étapes :
-1.  **Analyse et Recherche :** Analyse le contenu fourni. Identifie les concepts fondamentaux, les relations de cause à effet, les définitions clés et les données essentielles. Si le sujet est général, effectue une recherche pour garantir l'exactitude et la pertinence des informations.
-2.  **Structuration (Cahier Virtuel) :** Organise les informations extraites dans un plan logique. Pour chaque concept clé, prépare une paire question/réponse potentielle en te demandant : "Quelle est la meilleure question pour forcer le cerveau à retrouver cette information sans indice ?"
-3.  **Génération des Flashcards :** Utilise ton plan pour générer les flashcards finales en suivant les règles de formatage et de contenu ci-dessous.
-# Règles de Contenu et de Format
-- **Qualité des Questions (Rappel Actif) :** Ne pose pas de questions simplistes. Varie les types de questions pour stimuler différentes formes de mémorisation :
-    - **"Pourquoi" et "Comment" :** Pour comprendre les processus et les relations de cause à effet.
-    - **Définition Inversée :** Donne la définition et demande le terme (ex: "Quel terme désigne...")
-    - **Remplir le Vide :** Formule une phrase clé avec un blanc à remplir \`[ ... ]\`.
-    - **Comparaison :** Demande de comparer ou de différencier deux concepts (ex: "Quelle est la différence principale entre X et Y ?").
-- **Qualité des Réponses :** Les réponses doivent être concises, précises et aller droit au but. Elles doivent contenir uniquement l'information nécessaire pour répondre à la question.`;
-
-  const systemInstructionForFile = `# Rôle et Mission
-Tu es un tuteur expert et un concepteur pédagogique. Ta mission est de décomposer et d'analyser en profondeur le document de cours fourni pour en extraire l'essence et créer un jeu de flashcards qui cible les concepts les plus critiques.
-# Contexte et Source de Vérité
-Le document fourni ci-dessous est la source de vérité unique et principale. Ton analyse doit se concentrer exclusivement sur son contenu.
-# Méthodologie d'Analyse (Processus Interne)
-1.  **Analyse Structurelle :** Lis l'intégralité du document pour en comprendre la structure. Identifie la hiérarchie de l'information : les grands thèmes, les sous-chapitres, les définitions mises en évidence, les exemples clés et les conclusions.
-2.  **Synthèse Conceptuelle (Ton "Cahier Virtuel") :** Cartographie les concepts. Pour chaque section majeure, résume l'idée centrale. Note les relations entre les idées. Liste les termes et définitions indispensables.
-3.  **Identification des Questions Clés :** En te basant sur ta synthèse, détermine les points les plus cruciaux. Pour chaque point, demande-toi : "Si un étudiant ne peut pas répondre à cette question, a-t-il vraiment compris le chapitre ?".
-4.  **Génération des Flashcards :** Rédige les flashcards en suivant les règles ci-dessous.
-# Règles de Création des Flashcards
-- **Pertinence Maximale :** Chaque question doit tester un concept fondamental identifié lors de ton analyse, pas un détail trivial.
-- **Types de Questions Variées :**
-    - **Concept/Définition :** "Quel terme décrit... ?" ou "Définir [concept clé]".
-    - **Processus/Relation :** "Comment [concept A] influence-t-il [concept B] ?" ou "Quelles sont les étapes de [processus] ?".
-    - **Application :** "Dans quelle situation utiliserait-on [théorie/formule] ?".
-    - **Différenciation :** "Quelle est la différence fondamentale entre [X] et [Y] ?".
-- **Qualité des Réponses :** Les réponses doivent être concises, précises et directement issues du document fourni.`;
-
-  const systemInstruction = file ?
-    systemInstructionForFile.replace("[nombre de cartes, ex: 7]", `${numCards}`) :
-    systemInstructionForTopic.replace("[Entre 5 et 10, ou un nombre spécifique]", `${numCards}`);
-
   const parts: object[] = [];
   if (topic.trim()) {
     parts.push({ text: `Le sujet est : "${topic}".` });
