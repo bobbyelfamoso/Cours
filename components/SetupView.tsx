@@ -163,6 +163,11 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
     };
 
     const handleAddNewCard = () => {
+        if (generatedCards && generatedCards.length >= 25) {
+            setError("La limite de 25 cartes par paquet est atteinte.");
+            return;
+        }
+        setError(null); // Clear previous errors if any
         const newCard: GeneratedFlashcard = { question: 'Nouvelle Question', answer: 'Nouvelle Réponse' };
         const newCards = [...(generatedCards || []), newCard];
         setGeneratedCards(newCards);
@@ -227,9 +232,14 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
                             </button>
                         </div>
                     ))}
-                    <button onClick={handleAddNewCard} className="flex flex-col items-center justify-center p-4 rounded-lg border-2 border-dashed border-slate-700 hover:border-cyan-500 hover:bg-slate-800/50 transition-colors text-slate-400 hover:text-cyan-400 min-h-[150px]">
+                    <button 
+                        onClick={handleAddNewCard} 
+                        disabled={generatedCards.length >= 25}
+                        className="flex flex-col items-center justify-center p-4 rounded-lg border-2 border-dashed border-slate-700 hover:border-cyan-500 hover:bg-slate-800/50 transition-colors text-slate-400 hover:text-cyan-400 min-h-[150px] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-slate-700 disabled:hover:bg-transparent"
+                    >
                         <PlusIcon className="w-8 h-8 mb-2" />
                         <span className="font-semibold">Ajouter une carte</span>
+                         {generatedCards.length >= 25 && <span className="text-xs text-slate-500 mt-1">(Limite atteinte)</span>}
                     </button>
                 </div>
                 
