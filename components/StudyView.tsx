@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Deck, StudyFlashcard } from '../types';
 import Flashcard from './Flashcard';
 import { CheckIcon, XIcon, ArrowLeftIcon } from './Icons';
@@ -32,38 +32,31 @@ const StudyView: React.FC<StudyViewProps> = ({ deck, onFinish }) => {
   }, [flashcards]);
 
   useEffect(() => {
-    selectNextCard();
-  }, [flashcards]);
-
-  const selectNextCard = useCallback(() => {
-    setIsFlipped(false);
-    // Let the flip animation finish
-    setTimeout(() => {
-      const nextStudyDeck = flashcards
-        .map((card, index) => ({ ...card, originalIndex: index }))
-        .filter(card => card.score < COMPLETION_SCORE);
-
-      if (nextStudyDeck.length > 0) {
-        const randomIndex = Math.floor(Math.random() * nextStudyDeck.length);
-        setCurrentCardIndex(nextStudyDeck[randomIndex].originalIndex);
-      } else {
-        setCurrentCardIndex(null);
-      }
-    }, 250);
+    if (studyDeck.length > 0) {
+      const randomIndex = Math.floor(Math.random() * studyDeck.length);
+      setCurrentCardIndex(studyDeck[randomIndex].originalIndex);
+    } else {
+      setCurrentCardIndex(null);
+    }
   }, [flashcards]);
 
   const handleAnswer = (isCorrect: boolean) => {
     if (currentCardIndex === null) return;
     
-    setFlashcards(prev => prev.map((card, index) => {
-      if (index === currentCardIndex) {
-        return {
-          ...card,
-          score: isCorrect ? Math.min(COMPLETION_SCORE, card.score + 1) : 0
-        };
-      }
-      return card;
-    }));
+    setIsFlipped(false);
+
+    // Use a timeout to allow the flip animation to start before the card content changes
+    setTimeout(() => {
+        setFlashcards(prev => prev.map((card, index) => {
+          if (index === currentCardIndex) {
+            return {
+              ...card,
+              score: isCorrect ? Math.min(COMPLETION_SCORE, card.score + 1) : 0
+            };
+          }
+          return card;
+        }));
+    }, 250); 
   };
 
   if (currentCardIndex === null) {

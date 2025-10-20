@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Deck, Folder } from '../types';
 import { getFolderContents, createFolder, getPath, deleteDeck, deleteFolder, renameItem, toggleFavorite } from '../services/firestoreService';
-import { FolderIcon, PlusIcon, StarIcon, MoreHorizontalIcon } from './Icons';
+import { getGuestDecks, deleteGuestDeck } from '../services/localStorageService';
+import { FolderIcon, PlusIcon, StarIcon, MoreHorizontalIcon, TrashIcon } from './Icons';
 import { ConfirmationModal, RenameModal } from './Modal';
 
 interface DecksViewProps {
@@ -27,12 +28,15 @@ const DecksView: React.FC<DecksViewProps> = ({ onStartSetup, onStartStudy, isGue
     }>({ type: null });
 
     const loadContents = useCallback(async () => {
+        setIsLoading(true);
+        setError(null);
         if (isGuest) {
+            setDecks(getGuestDecks());
+            setFolders([]);
+            setPath([]);
             setIsLoading(false);
             return;
         }
-        setIsLoading(true);
-        setError(null);
         try {
             const [{ folders, decks }, path] = await Promise.all([
                 getFolderContents(currentFolderId),
@@ -67,7 +71,7 @@ const DecksView: React.FC<DecksViewProps> = ({ onStartSetup, onStartStudy, isGue
             loadContents();
         } catch (error) {
             console.error("Error creating folder:", error);
-            setError("Impossible de créer le dossier.");
+            setError(error instanceof Error ? error.message : "Impossible de créer le dossier.");
         }
     };
 
@@ -80,10 +84,16 @@ const DecksView: React.FC<DecksViewProps> = ({ onStartSetup, onStartStudy, isGue
         const { id, type } = modalState.item;
         
         try {
-            if (type === 'deck') {
-                await deleteDeck(id);
+            if (isGuest) {
+                if (type === 'deck') {
+                    deleteGuestDeck(id);
+                }
             } else {
-                await deleteFolder(id);
+                if (type === 'deck') {
+                    await deleteDeck(id);
+                } else {
+                    await deleteFolder(id);
+                }
             }
             loadContents();
         } catch (error) {
@@ -144,17 +154,54 @@ const DecksView: React.FC<DecksViewProps> = ({ onStartSetup, onStartStudy, isGue
 
     if (isGuest) {
         return (
-            <div className="text-center">
-                <h2 className="text-2xl font-bold mb-4">Bienvenue !</h2>
-                <p className="text-slate-400 mb-6">Vous êtes en mode invité. Créez un paquet pour commencer à étudier.</p>
-                <button
-                    onClick={() => onStartSetup(null)}
-                    className="flex items-center justify-center gap-2 mx-auto py-3 px-6 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-md transition-colors shadow-lg"
-                >
-                    <PlusIcon className="w-5 h-5" />
-                    Créer un nouveau paquet
-                </button>
-                 <p className="text-slate-500 mt-4 text-sm">Note : Les paquets ne seront pas sauvegardés en mode invité.</p>
+            <div className="w-full">
+                 <div className="flex justify-between items-center mb-6">
+                    <h1 className="text-3xl font-bold">Mes Paquets (Invité)</h1>
+                    <button
+                        onClick={() => onStartSetup(null)}
+                        className="flex items-center justify-center gap-2 py-2 px-4 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-md transition-colors shadow-lg"
+                    >
+                        <PlusIcon className="w-5 h-5" />
+                        Nouveau Paquet
+                    </button>
+                </div>
+
+                {isLoading && <div className="text-center p-8">Chargement...</div>}
+
+                {!isLoading && decks.length === 0 && (
+                    <div className="text-center p-8 border-2 border-dashed border-slate-700 rounded-lg">
+                        <p className="text-slate-400">Vous n'avez aucun paquet sauvegardé localement.</p>
+                        <p className="text-slate-500 text-sm mt-2">Créez un nouveau paquet pour commencer.</p>
+                    </div>
+                )}
+            
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {decks.map(deck => (
+                        <div key={deck.id} className="group relative bg-slate-800 p-4 rounded-lg border border-slate-700 hover:border-cyan-500 transition-all flex flex-col justify-between">
+                            <div>
+                                <h3 className="font-bold text-xl mb-2">{deck.topic}</h3>
+                                <p className="text-sm text-slate-400">{deck.cards.length} cartes</p>
+                            </div>
+                            <div className="mt-4 flex justify-between items-center">
+                                <button onClick={() => onStartStudy(deck)} className="py-2 px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-md transition-colors text-sm">
+                                    Étudier
+                                </button>
+                                <button onClick={() => openDeleteModal({ id: deck.id, name: deck.topic, type: 'deck' })} className="p-1 text-slate-500 hover:text-red-400 transition-colors">
+                                     <TrashIcon className="w-5 h-5"/>
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                 <ConfirmationModal
+                    isOpen={modalState.type === 'delete'}
+                    onClose={closeModal}
+                    onConfirm={confirmDelete}
+                    title="Supprimer le paquet"
+                    message={`Êtes-vous sûr de vouloir supprimer "${modalState.item?.name}" ? Cette action est irréversible.`}
+                    confirmText="Supprimer"
+                />
             </div>
         )
     }

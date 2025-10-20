@@ -1,206 +1,312 @@
+
 import React, { useState } from 'react';
-import { GeneratedFlashcard } from '../types';
-import { generateFlashcards } from '../services/geminiService';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../firebase';
 import { saveDeck } from '../services/firestoreService';
-import { RefreshIcon, PlusIcon, TrashIcon, ArrowLeftIcon } from './Icons';
+import { saveGuestDeck } from '../services/localStorageService';
+import { GeneratedFlashcard } from '../types';
+import { ArrowLeftIcon, PlusIcon, RefreshIcon, UploadIcon, PencilIcon } from './Icons';
+import EditCardModal from './EditCardModal';
 
 interface SetupViewProps {
-  onFinish: () => void;
+  onBack: () => void;
   isGuest: boolean;
   folderId: string | null;
 }
 
-const SetupView: React.FC<SetupViewProps> = ({ onFinish, isGuest, folderId }) => {
+const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
     const [topic, setTopic] = useState('');
-    const [image, setImage] = useState<{ file: File, preview: string } | null>(null);
-    const [generatedCards, setGeneratedCards] = useState<GeneratedFlashcard[]>([]);
+    const [numCards, setNumCards] = useState(10);
+    const [file, setFile] = useState<File | null>(null);
+    const [fileName, setFileName] = useState<string | null>(null);
+
+    const [generatedCards, setGeneratedCards] = useState<GeneratedFlashcard[] | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setImage({ file, preview: URL.createObjectURL(file) });
+    const [editingCardIndex, setEditingCardIndex] = useState<number | null>(null);
+    
+    const getGuestId = (): string => {
+        let guestId = localStorage.getItem('guestId');
+        if (!guestId) {
+            guestId = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+            localStorage.setItem('guestId', guestId);
         }
+        return guestId;
     };
 
     const fileToBase64 = (file: File): Promise<string> => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
-            reader.onload = () => resolve((reader.result as string).split(',')[1]);
-            reader.onerror = error => reject(error);
+            reader.onload = () => {
+                const base64 = (reader.result as string).split(',')[1];
+                resolve(base64);
+            };
+            reader.onerror = (error) => reject(error);
         });
     };
 
-    const handleGenerate = async () => {
-        if (!topic.trim()) {
-            setError("Veuillez entrer un sujet.");
+    const handleGenerate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!topic.trim() && !file) {
+            setError('Veuillez entrer un sujet ou téléverser un fichier.');
             return;
         }
+
         setIsLoading(true);
         setError(null);
-        setGeneratedCards([]);
-        
-        try {
-            let imagePayload;
-            if (image) {
-                const base64Data = await fileToBase64(image.file);
-                imagePayload = { mimeType: image.file.type, data: base64Data };
-            }
-            const cards = await generateFlashcards(topic, imagePayload);
-            setGeneratedCards(cards);
-        } catch (err) {
-            console.error(err);
-            setError(err instanceof Error ? err.message : "Une erreur inconnue est survenue.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
+        setGeneratedCards(null);
 
-    const handleSaveDeck = async () => {
-        if (isGuest) {
-            // In guest mode, we don't save, just proceed to study
-             if (generatedCards.length > 0) {
-                // To-do: transition to study view with temporary deck
-                alert("La session d'étude en mode invité n'est pas encore implémentée.");
-            }
-            return;
-        }
-        if (generatedCards.length === 0) return;
-        setIsLoading(true);
         try {
-            await saveDeck(topic, generatedCards, folderId);
-            onFinish();
+            const generateFlashcards = httpsCallable(functions, 'generateFlashcards');
+            const params: { topic: string, numCards: number, file?: { mimeType: string, data: string }, guestId?: string } = {
+                topic,
+                numCards,
+            };
+
+            if (isGuest) {
+                params.guestId = getGuestId();
+            }
+
+            if (file) {
+                params.file = {
+                    mimeType: file.type,
+                    data: await fileToBase64(file),
+                };
+            }
+            
+            const result = await generateFlashcards(params) as { data: { flashcards: GeneratedFlashcard[] } };
+            
+            if (result.data.flashcards && result.data.flashcards.length > 0) {
+                setGeneratedCards(result.data.flashcards);
+                if(!topic.trim() && file) {
+                    setTopic(`Notes de ${file.name}`);
+                }
+            } else {
+                setError("L'IA n'a retourné aucune carte. Essayez de reformuler votre sujet.");
+            }
         } catch (err) {
             console.error(err);
-            setError("Erreur lors de la sauvegarde du paquet.");
+            const firebaseError = err as { code?: string, message?: string };
+            setError(firebaseError.message || "Une erreur est survenue lors de la génération des cartes.");
         } finally {
             setIsLoading(false);
         }
     };
     
-    // Edit/delete functions for generated cards
-    const updateCard = (index: number, field: 'question' | 'answer', value: string) => {
-        const newCards = [...generatedCards];
-        newCards[index] = { ...newCards[index], [field]: value };
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = e.target.files?.[0];
+        if (selectedFile) {
+            if (selectedFile.size > 4 * 1024 * 1024) { // 4MB limit
+                setError("La taille du fichier ne doit pas dépasser 4 Mo.");
+                return;
+            }
+            setFile(selectedFile);
+            setFileName(selectedFile.name);
+        }
+    };
+    
+    const removeFile = () => {
+        setFile(null);
+        setFileName(null);
+        const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+        if (fileInput) fileInput.value = '';
+    };
+
+    const handleSaveDeck = async () => {
+        if (!generatedCards || generatedCards.length === 0 || !topic.trim()) {
+            setError("Impossible de sauvegarder un paquet vide ou sans sujet.");
+            return;
+        }
+
+        setIsSaving(true);
+        setError(null);
+
+        try {
+            if (isGuest) {
+                saveGuestDeck(topic, generatedCards);
+            } else {
+                await saveDeck(topic, generatedCards, folderId);
+            }
+            onBack();
+        } catch (err) {
+            console.error(err);
+            setError(err instanceof Error ? err.message : "Une erreur est survenue lors de la sauvegarde.");
+            setIsSaving(false);
+        }
+    };
+
+    const handleUpdateCard = (updatedCard: GeneratedFlashcard) => {
+        if (editingCardIndex !== null && generatedCards) {
+            const newCards = [...generatedCards];
+            newCards[editingCardIndex] = updatedCard;
+            setGeneratedCards(newCards);
+        }
+        setEditingCardIndex(null);
+    };
+
+    const handleDeleteCard = () => {
+        if (editingCardIndex !== null && generatedCards) {
+            const newCards = generatedCards.filter((_, index) => index !== editingCardIndex);
+            setGeneratedCards(newCards);
+        }
+        setEditingCardIndex(null);
+    };
+
+    const handleAddNewCard = () => {
+        const newCard: GeneratedFlashcard = { question: 'Nouvelle Question', answer: 'Nouvelle Réponse' };
+        const newCards = [...(generatedCards || []), newCard];
         setGeneratedCards(newCards);
+        setEditingCardIndex(newCards.length - 1);
+    };
+    
+    const resetSetup = () => {
+        setGeneratedCards(null);
+        setTopic('');
+        setFile(null);
+        setFileName(null);
+        setError(null);
     };
 
-    const deleteCard = (index: number) => {
-        setGeneratedCards(generatedCards.filter((_, i) => i !== index));
-    };
 
-    const addCard = () => {
-        setGeneratedCards([...generatedCards, { question: '', answer: '' }]);
-    };
-
-    const buttonText = isGuest ? "Commencer à étudier" : "Sauvegarder le Paquet";
-
-    return (
-        <div className="w-full flex flex-col items-center">
-            <button onClick={onFinish} className="self-start flex items-center gap-2 text-slate-400 hover:text-slate-200 transition-colors mb-4">
-                <ArrowLeftIcon className="w-5 h-5" />
-                Retour
-            </button>
-            <div className="w-full bg-slate-800 p-8 rounded-xl shadow-2xl border border-slate-700">
-                <h2 className="text-3xl font-bold mb-6 text-center">Créer un nouveau Paquet</h2>
-
-                <div className="mb-6">
-                    <label htmlFor="topic" className="block text-sm font-medium text-slate-300 mb-2">Sujet</label>
+    if (isLoading) {
+        return (
+            <div className="text-center p-8 bg-slate-800 rounded-lg shadow-xl w-full">
+                <h2 className="text-2xl font-bold text-cyan-400 mb-4 animate-pulse">Génération en cours...</h2>
+                <p className="text-slate-300">Votre tuteur IA prépare vos flashcards. Cela peut prendre un moment.</p>
+            </div>
+        );
+    }
+    
+    if (generatedCards) {
+        return (
+            <div className="w-full animate-fade-in">
+                <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
+                    <h2 className="text-3xl font-bold text-slate-100">Vérifiez vos Flashcards</h2>
+                    <div className="flex gap-2">
+                        <button onClick={resetSetup} className="flex items-center gap-2 py-2 px-4 bg-slate-700 hover:bg-slate-600 font-semibold rounded-md transition-colors">
+                            <ArrowLeftIcon className="w-5 h-5" />
+                            Recommencer
+                        </button>
+                        <button onClick={handleSaveDeck} disabled={isSaving} className="py-2 px-4 bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-600 text-white font-bold rounded-md transition-colors shadow-lg">
+                            {isSaving ? 'Sauvegarde...' : `Sauvegarder le Paquet (${generatedCards.length})`}
+                        </button>
+                    </div>
+                </div>
+                 <div className="mb-4">
+                    <label htmlFor="deck-topic" className="block text-sm font-medium text-slate-300 mb-2">Sujet du paquet</label>
                     <input
-                        id="topic"
+                        id="deck-topic"
                         type="text"
                         value={topic}
                         onChange={(e) => setTopic(e.target.value)}
-                        placeholder="Ex: Les capitales d'Europe"
                         className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-md placeholder-slate-500 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all"
+                        placeholder="Ex: Capitales du Monde"
                     />
                 </div>
-
-                <div className="mb-6">
-                     <label htmlFor="image-upload" className="block text-sm font-medium text-slate-300 mb-2">Image (Optionnel)</label>
-                    <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-600 border-dashed rounded-md">
-                        <div className="space-y-1 text-center">
-                             {image ? (
-                                <img src={image.preview} alt="Aperçu" className="mx-auto h-24 w-auto"/>
-                            ) : (
-                                <svg className="mx-auto h-12 w-12 text-slate-500" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                            )}
-                            <div className="flex text-sm text-slate-400">
-                                <label htmlFor="image-upload" className="relative cursor-pointer bg-slate-800 rounded-md font-medium text-cyan-400 hover:text-cyan-300 focus-within:outline-none">
-                                    <span>Télécharger un fichier</span>
-                                    <input id="image-upload" name="image-upload" type="file" className="sr-only" onChange={handleImageChange} accept="image/*" />
-                                </label>
-                                <p className="pl-1">ou glissez-déposez</p>
+                {error && <p className="text-red-400 mb-4 text-sm">{error}</p>}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {generatedCards.map((card, index) => (
+                        <div key={index} className="group relative bg-slate-800 p-4 rounded-lg border border-slate-700 flex flex-col justify-between min-h-[150px]">
+                            <div>
+                                <p className="font-semibold text-slate-200 mb-2">{card.question}</p>
+                                <p className="text-sm text-cyan-300">{card.answer}</p>
                             </div>
-                            <p className="text-xs text-slate-500">PNG, JPG, GIF jusqu'à 10MB</p>
+                            <button onClick={() => setEditingCardIndex(index)} className="absolute top-2 right-2 p-2 bg-slate-900/50 rounded-full text-slate-400 opacity-0 group-hover:opacity-100 hover:text-white transition-opacity">
+                                <PencilIcon className="w-4 h-4" />
+                            </button>
                         </div>
-                    </div>
+                    ))}
+                    <button onClick={handleAddNewCard} className="flex flex-col items-center justify-center p-4 rounded-lg border-2 border-dashed border-slate-700 hover:border-cyan-500 hover:bg-slate-800/50 transition-colors text-slate-400 hover:text-cyan-400 min-h-[150px]">
+                        <PlusIcon className="w-8 h-8 mb-2" />
+                        <span className="font-semibold">Ajouter une carte</span>
+                    </button>
                 </div>
-
-                <button
-                    onClick={handleGenerate}
-                    disabled={isLoading || !topic.trim()}
-                    className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-600 text-white font-bold rounded-md transition-colors shadow-lg"
-                >
-                    {isLoading ? 'Génération en cours...' : 'Générer les Flashcards'}
-                    <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-                </button>
-
-                {error && <p className="text-red-400 mt-4 text-center">{error}</p>}
+                
+                {editingCardIndex !== null && (
+                    <EditCardModal
+                        card={generatedCards[editingCardIndex]}
+                        onSave={handleUpdateCard}
+                        onDelete={handleDeleteCard}
+                        onCancel={() => setEditingCardIndex(null)}
+                    />
+                )}
             </div>
+        )
+    }
 
-            {generatedCards.length > 0 && (
-                <div className="w-full mt-8">
-                    <h3 className="text-2xl font-bold mb-4">Flashcards Générées ({generatedCards.length})</h3>
-                    <div className="space-y-4">
-                        {generatedCards.map((card, index) => (
-                             <div key={index} className="bg-slate-800 p-4 rounded-lg border border-slate-700 flex gap-4">
-                                <span className="text-cyan-400 font-bold">{index + 1}.</span>
-                                <div className="flex-grow">
-                                    <textarea
-                                        value={card.question}
-                                        onChange={(e) => updateCard(index, 'question', e.target.value)}
-                                        placeholder="Question"
-                                        className="w-full bg-slate-700 p-2 rounded-md mb-2 resize-none"
-                                        rows={2}
-                                    />
-                                    <textarea
-                                        value={card.answer}
-                                        onChange={(e) => updateCard(index, 'answer', e.target.value)}
-                                        placeholder="Réponse"
-                                        className="w-full bg-slate-700 p-2 rounded-md resize-none"
-                                        rows={2}
-                                    />
-                                </div>
-                                <button onClick={() => deleteCard(index)} className="text-slate-500 hover:text-red-500">
-                                    <TrashIcon className="w-6 h-6" />
-                                </button>
-                            </div>
-                        ))}
+    return (
+        <div className="w-full max-w-2xl">
+            <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-slate-200 transition-colors mb-6">
+                <ArrowLeftIcon className="w-5 h-5" />
+                Retour
+            </button>
+            <div className="bg-slate-800 p-8 rounded-xl shadow-2xl border border-slate-700">
+                <h2 className="text-3xl font-bold mb-2">Créer un Paquet de Flashcards</h2>
+                <p className="text-slate-400 mb-6">Décrivez un sujet ou téléversez un document, et laissez l'IA faire le reste.</p>
+
+                <form onSubmit={handleGenerate}>
+                    <div className="mb-6">
+                        <label htmlFor="topic" className="block text-sm font-medium text-slate-300 mb-2">
+                            Sujet
+                        </label>
+                        <textarea
+                            id="topic"
+                            value={topic}
+                            onChange={(e) => setTopic(e.target.value)}
+                            className="w-full h-24 px-4 py-3 bg-slate-700 border border-slate-600 rounded-md placeholder-slate-500 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all"
+                            placeholder="Ex: La photosynthèse pour un débutant, les principaux événements de la Révolution française, ou les verbes irréguliers en anglais..."
+                        />
+                    </div>
+                    
+                    <div className="text-center text-slate-500 mb-6 font-semibold">OU</div>
+
+                     <div className="mb-6">
+                        <label htmlFor="file-upload" className="block text-sm font-medium text-slate-300 mb-2">
+                           Téléverser un fichier (PDF, TXT, etc.)
+                        </label>
+                        <label className={`flex justify-center w-full h-32 px-4 transition bg-slate-700 border-2 border-dashed rounded-md appearance-none cursor-pointer hover:border-cyan-400 focus:outline-none ${file ? 'border-cyan-500' : 'border-slate-600'}`}>
+                           <span className="flex items-center space-x-2">
+                                <UploadIcon className="w-6 h-6 text-slate-400" />
+                                <span className="font-medium text-slate-400">
+                                    {fileName ? fileName : 'Glissez-déposez ou cliquez pour téléverser'}
+                                </span>
+                           </span>
+                           <input id="file-upload" type="file" name="file_upload" className="hidden" onChange={handleFileChange} accept=".pdf,.txt,.md,.docx,.pptx"/>
+                        </label>
+                        {fileName && <button type="button" onClick={removeFile} className="text-xs text-red-400 hover:text-red-300 mt-2">Retirer le fichier</button>}
                     </div>
 
-                     <div className="mt-6 flex justify-between items-center">
-                        <button
-                            onClick={addCard}
-                            className="flex items-center gap-2 py-2 px-4 bg-slate-700 hover:bg-slate-600 font-semibold rounded-md transition-colors"
-                        >
-                            <PlusIcon className="w-5 h-5" />
-                            Ajouter une carte
-                        </button>
-                        <button
-                            onClick={handleSaveDeck}
-                            disabled={isLoading}
-                            className="py-3 px-6 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-bold rounded-md transition-colors shadow-lg"
-                        >
-                            {isLoading ? 'Sauvegarde...' : buttonText}
-                        </button>
+                    <div className="mb-8">
+                        <label htmlFor="num-cards" className="block text-sm font-medium text-slate-300 mb-2">
+                            Nombre de cartes à générer : <span className="font-bold text-cyan-400">{numCards}</span>
+                        </label>
+                        <input
+                            type="range"
+                            id="num-cards"
+                            min="1"
+                            max="25"
+                            value={numCards}
+                            onChange={(e) => setNumCards(Number(e.target.value))}
+                            className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer range-thumb"
+                        />
                     </div>
-                </div>
-            )}
+                    
+                    {error && <p className="text-red-400 mb-4 text-sm">{error}</p>}
+
+                    <button
+                        type="submit"
+                        disabled={isLoading || (!topic.trim() && !file)}
+                        className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-bold rounded-md transition-colors shadow-lg"
+                    >
+                        <RefreshIcon className={`w-6 h-6 ${isLoading ? 'animate-spin' : ''}`} />
+                        {isLoading ? 'Génération...' : 'Générer les Flashcards'}
+                    </button>
+                </form>
+            </div>
         </div>
     );
 };

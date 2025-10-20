@@ -1,14 +1,36 @@
-import { collection, addDoc, query, where, getDocs, serverTimestamp, doc, deleteDoc, Timestamp, writeBatch, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, serverTimestamp, doc, deleteDoc, Timestamp, writeBatch, getDoc, updateDoc, getCountFromServer } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { Flashcard, Deck, Folder } from '../types';
 
 const DECKS_COLLECTION = 'decks1';
 const FOLDERS_COLLECTION = 'folders1';
+const FOLDER_LIMIT = 50;
+const DECK_LIMIT_PER_FOLDER = 75;
+
+// --- Fonctions de comptage ---
+
+async function countUserFolders(userId: string): Promise<number> {
+    const q = query(collection(db, FOLDERS_COLLECTION), where("userId", "==", userId));
+    const snapshot = await getCountFromServer(q);
+    return snapshot.data().count;
+}
+
+async function countDecksInFolder(userId: string, folderId: string | null): Promise<number> {
+    const q = query(collection(db, DECKS_COLLECTION), where("userId", "==", userId), where("folderId", "==", folderId));
+    const snapshot = await getCountFromServer(q);
+    return snapshot.data().count;
+}
+
 
 // Save a new deck to Firestore for the current user
 export async function saveDeck(topic: string, cards: Flashcard[], folderId: string | null): Promise<Deck> {
   const user = auth.currentUser;
   if (!user) throw new Error('User not authenticated');
+
+  const deckCount = await countDecksInFolder(user.uid, folderId);
+  if (deckCount >= DECK_LIMIT_PER_FOLDER) {
+      throw new Error(`Limite de ${DECK_LIMIT_PER_FOLDER} paquets atteinte dans ce dossier.`);
+  }
 
   const deckData = {
     userId: user.uid,
@@ -32,6 +54,11 @@ export async function saveDeck(topic: string, cards: Flashcard[], folderId: stri
 export async function createFolder(name: string, parentId: string | null): Promise<Folder> {
     const user = auth.currentUser;
     if (!user) throw new Error('User not authenticated');
+
+    const folderCount = await countUserFolders(user.uid);
+    if (folderCount >= FOLDER_LIMIT) {
+        throw new Error(`Limite de ${FOLDER_LIMIT} dossiers atteinte. Impossible d'en créer un nouveau.`);
+    }
 
     const folderData = {
         userId: user.uid,
