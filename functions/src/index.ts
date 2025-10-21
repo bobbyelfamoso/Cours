@@ -11,6 +11,13 @@ const geminiApiKey = defineString("API_KEY");
 const API_CALL_LIMIT = 200;
 const TIME_WINDOW_MS = 5 * 60 * 60 * 1000; // 5 heures
 const LIMITS_COLLECTION = "apiCallLimits";
+const ALLOWED_MIME_TYPES = [
+  "application/pdf",
+  "text/plain",
+  "text/markdown",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+];
 
 const responseSchema = {
   type: Type.ARRAY,
@@ -70,26 +77,25 @@ async function getSystemInstruction(isForFile: boolean, numCards: number): Promi
 
     if (!docSnap.exists) {
       console.error(`Prompt document not found: ${docId}`);
-      throw new HttpsError("not-found", `Configuration du prompt système introuvable.`);
+      throw new HttpsError("not-found", `Le document de configuration du prompt '${docId}' est introuvable dans Firestore.`);
     }
 
     const data = docSnap.data();
-    // D'après la capture d'écran, le nom du champ est le même que l'ID du document.
-    const promptTemplate = data?.[docId] as string;
+    // The prompt text is expected in a field named 'template'.
+    const promptTemplate = data?.template as string;
 
     if (!promptTemplate || typeof promptTemplate !== "string") {
-      console.error(`Invalid prompt field in document: ${docId}`);
-      throw new HttpsError("internal", `Format du prompt système incorrect.`);
+      console.error(`Invalid or missing 'template' field in document: ${docId}`);
+      throw new HttpsError("internal", `Le champ 'template' est manquant ou invalide dans le document de prompt '${docId}'. Assurez-vous qu'il existe et qu'il est de type 'string'.`);
     }
 
-    // Remplace le placeholder pour le nombre de cartes.
+    // Replace the placeholder for the number of cards.
     return promptTemplate.replace(/{{numCards}}/g, String(numCards));
   } catch (error) {
     console.error(`Error fetching system instruction '${docId}':`, error);
     if (error instanceof HttpsError) {
       throw error;
     }
-    // FIX: Corrected typo from HpsError to HttpsError.
     throw new HttpsError("internal", "Impossible de récupérer le prompt système.");
   }
 }
@@ -122,6 +128,13 @@ export const generateFlashcards = onCall(async (request) => {
   if (typeof numCards !== "number" || numCards < 1 || numCards > 25) {
     throw new HttpsError("invalid-argument", "Le nombre de cartes doit être entre 1 et 25.");
   }
+  if (file && !ALLOWED_MIME_TYPES.includes(file.mimeType)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Type de fichier non autorisé. Seuls les fichiers PDF, TXT, MD, DOCX, et PPTX sont acceptés.",
+    );
+  }
+
 
   // Appliquer la limitation de taux
   await checkAndRecordApiCall(identifier);
