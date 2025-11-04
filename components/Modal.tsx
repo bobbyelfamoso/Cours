@@ -30,7 +30,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
       role="dialog"
     >
       <div
-        className="bg-slate-800 rounded-lg shadow-xl border border-slate-700 w-full max-w-md p-6 mx-4"
+        className="bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 w-full max-w-md p-6 mx-4"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-xl font-bold mb-4">{title}</h2>
@@ -53,11 +53,11 @@ interface ConfirmationModalProps {
 export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, onConfirm, title, message, confirmText = "Confirmer" }) => {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title}>
-      <p className="text-slate-300 mb-6">{message}</p>
+      <p className="text-slate-600 dark:text-slate-300 mb-6">{message}</p>
       <div className="flex justify-end gap-4">
         <button
           onClick={onClose}
-          className="py-2 px-4 bg-slate-700 hover:bg-slate-600 font-semibold rounded-md transition-colors"
+          className="py-2 px-4 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 font-semibold rounded-md transition-colors"
         >
           Annuler
         </button>
@@ -100,13 +100,13 @@ export const RenameModal: React.FC<RenameModalProps> = ({ isOpen, onClose, onCon
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title}>
       <form onSubmit={handleSubmit}>
-        <label className="block text-sm font-medium text-slate-300 mb-2" htmlFor="rename-input">Nouveau nom</label>
+        <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2" htmlFor="rename-input">Nouveau nom</label>
         <input
           id="rename-input"
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-md placeholder-slate-500 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all mb-6"
+          className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md placeholder-slate-500 focus:ring-2 focus:ring-pink-500 dark:focus:ring-cyan-500 focus:border-pink-500 dark:focus:border-cyan-500 outline-none transition-all mb-6"
           autoFocus
           onFocus={e => e.target.select()}
         />
@@ -114,13 +114,13 @@ export const RenameModal: React.FC<RenameModalProps> = ({ isOpen, onClose, onCon
           <button
             type="button"
             onClick={onClose}
-            className="py-2 px-4 bg-slate-700 hover:bg-slate-600 font-semibold rounded-md transition-colors"
+            className="py-2 px-4 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 font-semibold rounded-md transition-colors"
           >
             Annuler
           </button>
           <button
             type="submit"
-            className="py-2 px-4 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-md transition-colors"
+            className="py-2 px-4 bg-pink-600 hover:bg-pink-700 dark:bg-cyan-600 dark:hover:bg-cyan-700 text-white font-bold rounded-md transition-colors"
           >
             Renommer
           </button>

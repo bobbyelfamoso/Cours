@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Deck, Folder } from '../types';
 import { getFolderContents, createFolder, getPath, deleteDeck, deleteFolder, renameItem, toggleFavorite } from '../services/firestoreService';
@@ -139,12 +138,12 @@ const DecksView: React.FC<DecksViewProps> = ({ onStartSetup, onStartStudy, isGue
     };
 
     const renderBreadcrumbs = () => (
-        <nav className="flex items-center text-sm text-slate-400 mb-4">
-            <button onClick={() => setCurrentFolderId(null)} className="hover:text-cyan-400">Accueil</button>
+        <nav className="flex items-center text-sm text-slate-500 dark:text-slate-400 mb-4">
+            <button onClick={() => setCurrentFolderId(null)} className="hover:text-pink-600 dark:hover:text-cyan-400">Accueil</button>
             {path.map(folder => (
                 <React.Fragment key={folder.id}>
                     <span className="mx-2">/</span>
-                    <button onClick={() => setCurrentFolderId(folder.id)} className="hover:text-cyan-400">{folder.name}</button>
+                    <button onClick={() => setCurrentFolderId(folder.id)} className="hover:text-pink-600 dark:hover:text-cyan-400">{folder.name}</button>
                 </React.Fragment>
             ))}
         </nav>
@@ -159,7 +158,7 @@ const DecksView: React.FC<DecksViewProps> = ({ onStartSetup, onStartStudy, isGue
                     <h1 className="text-3xl font-bold">Mes Paquets (Invité)</h1>
                     <button
                         onClick={() => onStartSetup(null)}
-                        className="flex items-center justify-center gap-2 py-2 px-4 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-md transition-colors shadow-lg"
+                        className="flex items-center justify-center gap-2 py-2 px-4 bg-pink-600 hover:bg-pink-700 dark:bg-cyan-600 dark:hover:bg-cyan-700 text-white font-bold rounded-md transition-colors shadow-lg"
                     >
                         <PlusIcon className="w-5 h-5" />
                         Nouveau Paquet
@@ -169,24 +168,24 @@ const DecksView: React.FC<DecksViewProps> = ({ onStartSetup, onStartStudy, isGue
                 {isLoading && <div className="text-center p-8">Chargement...</div>}
 
                 {!isLoading && decks.length === 0 && (
-                    <div className="text-center p-8 border-2 border-dashed border-slate-700 rounded-lg">
-                        <p className="text-slate-400">Vous n'avez aucun paquet sauvegardé localement.</p>
-                        <p className="text-slate-500 text-sm mt-2">Créez un nouveau paquet pour commencer.</p>
+                    <div className="text-center p-8 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg">
+                        <p className="text-slate-500 dark:text-slate-400">Vous n'avez aucun paquet sauvegardé localement.</p>
+                        <p className="text-slate-400 dark:text-slate-500 text-sm mt-2">Créez un nouveau paquet pour commencer.</p>
                     </div>
                 )}
             
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {decks.map(deck => (
-                        <div key={deck.id} className="group relative bg-slate-800 p-4 rounded-lg border border-slate-700 hover:border-cyan-500 transition-all flex flex-col justify-between">
+                        <div key={deck.id} className="group relative bg-white dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-pink-500 dark:hover:border-cyan-500 transition-all flex flex-col justify-between">
                             <div>
                                 <h3 className="font-bold text-xl mb-2">{deck.topic}</h3>
-                                <p className="text-sm text-slate-400">{deck.cards.length} cartes</p>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">{deck.cards.length} cartes</p>
                             </div>
                             <div className="mt-4 flex justify-between items-center">
-                                <button onClick={() => onStartStudy(deck)} className="py-2 px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-md transition-colors text-sm">
+                                <button onClick={() => onStartStudy(deck)} className="py-2 px-5 bg-pink-600 hover:bg-pink-700 dark:bg-cyan-600 dark:hover:bg-cyan-700 text-white font-semibold rounded-md transition-colors text-sm">
                                     Étudier
                                 </button>
-                                <button onClick={() => openDeleteModal({ id: deck.id, name: deck.topic, type: 'deck' })} className="p-1 text-slate-500 hover:text-red-400 transition-colors">
+                                <button onClick={() => openDeleteModal({ id: deck.id, name: deck.topic, type: 'deck' })} className="p-1 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 transition-colors">
                                      <TrashIcon className="w-5 h-5"/>
                                 </button>
                             </div>
@@ -208,13 +207,13 @@ const DecksView: React.FC<DecksViewProps> = ({ onStartSetup, onStartStudy, isGue
 
     return (
         <div className="w-full">
-            {error && <div className="p-4 mb-4 text-sm text-red-200 bg-red-900/50 rounded-lg border border-red-800" role="alert">{error}</div>}
+            {error && <div className="p-4 mb-4 text-sm text-red-800 bg-red-100 dark:text-red-200 dark:bg-red-900/50 rounded-lg border border-red-200 dark:border-red-800" role="alert">{error}</div>}
 
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-3xl font-bold">{currentFolderName}</h1>
                 <div className="flex gap-2">
                      {!showNewFolderInput ? (
-                        <button onClick={() => setShowNewFolderInput(true)} className="flex items-center gap-2 py-2 px-4 bg-slate-700 hover:bg-slate-600 font-semibold rounded-md transition-colors">
+                        <button onClick={() => setShowNewFolderInput(true)} className="flex items-center gap-2 py-2 px-4 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 font-semibold rounded-md transition-colors">
                            <FolderIcon className="w-5 h-5" /> Dossier
                         </button>
                     ) : (
@@ -224,16 +223,16 @@ const DecksView: React.FC<DecksViewProps> = ({ onStartSetup, onStartStudy, isGue
                                 value={newFolderName}
                                 onChange={(e) => setNewFolderName(e.target.value)}
                                 placeholder="Nom du dossier"
-                                className="px-4 py-2 bg-slate-800 border border-slate-600 rounded-md focus:ring-2 focus:ring-cyan-500 outline-none"
+                                className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md focus:ring-2 focus:ring-pink-500 dark:focus:ring-cyan-500 outline-none"
                                 autoFocus
                                 onBlur={() => { if(!newFolderName) setShowNewFolderInput(false); }}
                             />
-                            <button type="submit" className="py-2 px-4 bg-cyan-600 hover:bg-cyan-700 rounded-md">Créer</button>
+                            <button type="submit" className="py-2 px-4 bg-pink-600 hover:bg-pink-700 dark:bg-cyan-600 dark:hover:bg-cyan-700 text-white rounded-md">Créer</button>
                         </form>
                     )}
                     <button
                         onClick={() => onStartSetup(currentFolderId)}
-                        className="flex items-center justify-center gap-2 py-2 px-4 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-md transition-colors shadow-lg"
+                        className="flex items-center justify-center gap-2 py-2 px-4 bg-pink-600 hover:bg-pink-700 dark:bg-cyan-600 dark:hover:bg-cyan-700 text-white font-bold rounded-md transition-colors shadow-lg"
                     >
                         <PlusIcon className="w-5 h-5" />
                         Nouveau Paquet
@@ -246,16 +245,16 @@ const DecksView: React.FC<DecksViewProps> = ({ onStartSetup, onStartStudy, isGue
             {isLoading && <div className="text-center p-8">Chargement du contenu...</div>}
 
             {!isLoading && !error && folders.length === 0 && decks.length === 0 && (
-                <div className="text-center p-8 border-2 border-dashed border-slate-700 rounded-lg">
-                    <p className="text-slate-400">Ce dossier est vide.</p>
-                    <p className="text-slate-500 text-sm mt-2">Créez un nouveau paquet ou un dossier pour commencer.</p>
+                <div className="text-center p-8 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg">
+                    <p className="text-slate-500 dark:text-slate-400">Ce dossier est vide.</p>
+                    <p className="text-slate-400 dark:text-slate-500 text-sm mt-2">Créez un nouveau paquet ou un dossier pour commencer.</p>
                 </div>
             )}
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {folders.map(folder => (
-                    <div key={folder.id} className="group relative bg-slate-800 p-4 rounded-lg border border-slate-700 hover:border-cyan-500 transition-all flex items-center gap-4 cursor-pointer" onClick={() => setCurrentFolderId(folder.id)}>
-                        <FolderIcon className="w-8 h-8 text-cyan-400" />
+                    <div key={folder.id} className="group relative bg-white dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-pink-500 dark:hover:border-cyan-500 transition-all flex items-center gap-4 cursor-pointer" onClick={() => setCurrentFolderId(folder.id)}>
+                        <FolderIcon className="w-8 h-8 text-pink-500 dark:text-cyan-400" />
                         <div className="flex-grow">
                             <p className="font-semibold text-lg">{folder.name}</p>
                         </div>
@@ -263,13 +262,13 @@ const DecksView: React.FC<DecksViewProps> = ({ onStartSetup, onStartStudy, isGue
                     </div>
                 ))}
                 {decks.map(deck => (
-                    <div key={deck.id} className="group relative bg-slate-800 p-4 rounded-lg border border-slate-700 hover:border-cyan-500 transition-all flex flex-col justify-between">
+                    <div key={deck.id} className="group relative bg-white dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-pink-500 dark:hover:border-cyan-500 transition-all flex flex-col justify-between">
                         <div>
                             <h3 className="font-bold text-xl mb-2">{deck.topic}</h3>
-                            <p className="text-sm text-slate-400">{deck.cards.length} cartes</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">{deck.cards.length} cartes</p>
                         </div>
                          <div className="mt-4 flex justify-between items-center">
-                            <button onClick={() => onStartStudy(deck)} className="py-2 px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-md transition-colors text-sm">
+                            <button onClick={() => onStartStudy(deck)} className="py-2 px-5 bg-pink-600 hover:bg-pink-700 dark:bg-cyan-600 dark:hover:bg-cyan-700 text-white font-semibold rounded-md transition-colors text-sm">
                                 Étudier
                             </button>
                              <ItemActions item={deck} type="deck" onToggleFavorite={handleToggleFavorite} onRename={() => openRenameModal({ id: deck.id, name: deck.topic, type: 'deck' })} onDelete={() => openDeleteModal({ id: deck.id, name: deck.topic, type: 'deck' })} />
@@ -314,13 +313,13 @@ const ItemActions = ({ item, type, onToggleFavorite, onRename, onDelete }: {
                 <StarIcon solid={item.isFavorite} className="w-5 h-5"/>
             </button>
             <div className="relative inline-block">
-                <button onClick={() => setMenuOpen(!menuOpen)} className="p-1 text-slate-500 hover:text-slate-200">
+                <button onClick={() => setMenuOpen(!menuOpen)} className="p-1 text-slate-500 dark:text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">
                      <MoreHorizontalIcon className="w-5 h-5"/>
                 </button>
                 {menuOpen && (
-                    <div className="absolute right-0 mt-2 w-40 bg-slate-900 border border-slate-700 rounded-md shadow-lg z-10" onMouseLeave={() => setMenuOpen(false)}>
-                        <button onClick={() => { onRename(); setMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-800">Renommer</button>
-                        <button onClick={() => { onDelete(); setMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-slate-800">Supprimer</button>
+                    <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md shadow-lg z-10" onMouseLeave={() => setMenuOpen(false)}>
+                        <button onClick={() => { onRename(); setMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">Renommer</button>
+                        <button onClick={() => { onDelete(); setMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-red-500 dark:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800">Supprimer</button>
                     </div>
                 )}
             </div>

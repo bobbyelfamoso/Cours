@@ -38,6 +38,7 @@ const StudyView: React.FC<StudyViewProps> = ({ deck, onFinish }) => {
     } else {
       setCurrentCardIndex(null);
     }
+    setIsFlipped(false);
   }, [flashcards]);
 
   const handleAnswer = (isCorrect: boolean) => {
@@ -61,12 +62,12 @@ const StudyView: React.FC<StudyViewProps> = ({ deck, onFinish }) => {
 
   if (currentCardIndex === null) {
     return (
-      <div className="text-center p-8 bg-slate-800 rounded-lg shadow-xl border border-slate-700">
-        <h2 className="text-3xl font-bold text-green-400 mb-4">Félicitations !</h2>
-        <p className="text-slate-300 mb-6">Vous avez maîtrisé toutes les cartes pour le sujet : "{deck.topic}".</p>
+      <div className="text-center p-8 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700">
+        <h2 className="text-3xl font-bold text-green-500 dark:text-green-400 mb-4">Félicitations !</h2>
+        <p className="text-slate-600 dark:text-slate-300 mb-6">Vous avez maîtrisé toutes les cartes pour le sujet : "{deck.topic}".</p>
         <button
           onClick={onFinish}
-          className="flex items-center justify-center gap-2 mx-auto px-6 py-3 bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors"
+          className="flex items-center justify-center gap-2 mx-auto px-6 py-3 bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors text-white"
         >
           <ArrowLeftIcon className="w-5 h-5" />
           Terminer la session
@@ -80,18 +81,18 @@ const StudyView: React.FC<StudyViewProps> = ({ deck, onFinish }) => {
 
   return (
     <div className="w-full">
-        <button onClick={onFinish} className="flex items-center gap-2 text-slate-400 hover:text-slate-200 transition-colors mb-4">
+        <button onClick={onFinish} className="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors mb-4">
             <ArrowLeftIcon className="w-5 h-5" />
             Retour
         </button>
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-center mb-4">{deck.topic}</h2>
         <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-cyan-300">Progression</span>
-            <span className="text-sm font-medium text-slate-400">{masteredCount} / {flashcards.length} Maîtrisées</span>
+            <span className="text-sm font-medium text-pink-600 dark:text-cyan-300">Progression</span>
+            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{masteredCount} / {flashcards.length} Maîtrisées</span>
         </div>
-        <div className="w-full bg-slate-700 rounded-full h-2.5">
-          <div className="bg-cyan-500 h-2.5 rounded-full" style={{ width: `${progressPercentage}%` }}></div>
+        <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
+          <div className="bg-pink-500 dark:bg-cyan-500 h-2.5 rounded-full" style={{ width: `${progressPercentage}%` }}></div>
         </div>
       </div>
     
@@ -103,7 +104,7 @@ const StudyView: React.FC<StudyViewProps> = ({ deck, onFinish }) => {
       />
 
       <div className={`mt-6 transition-opacity duration-300 ${isFlipped ? 'opacity-100' : 'opacity-0 invisible'}`}>
-        <p className="text-center text-slate-400 mb-4">Avez-vous bien répondu ?</p>
+        <p className="text-center text-slate-500 dark:text-slate-400 mb-4">Avez-vous bien répondu ?</p>
         <div className="flex justify-center gap-4">
           <button
             onClick={() => handleAnswer(false)}
