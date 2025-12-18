@@ -4,7 +4,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../firebase';
 import { saveDeck } from '../services/firestoreService';
 import { saveGuestDeck } from '../services/localStorageService';
-import { GeneratedFlashcard } from '../types';
+import { Flashcard } from '../types';
 import { ArrowLeftIcon, PlusIcon, RefreshIcon, UploadIcon, PencilIcon } from './Icons';
 import EditCardModal from './EditCardModal';
 
@@ -22,7 +22,7 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
     const [file, setFile] = useState<File | null>(null);
     const [fileName, setFileName] = useState<string | null>(null);
 
-    const [generatedCards, setGeneratedCards] = useState<GeneratedFlashcard[] | null>(null);
+    const [generatedCards, setGeneratedCards] = useState<Flashcard[] | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
@@ -52,7 +52,8 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
 
     const handleGenerate = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!topic.trim() && !file) {
+        const trimmedTopic = topic.trim();
+        if (!trimmedTopic && !file) {
             setError('Veuillez entrer un sujet ou téléverser un fichier.');
             return;
         }
@@ -64,13 +65,8 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
         try {
             const generateFlashcards = httpsCallable(functions, 'generateFlashcards');
             
-            // Append the number of cards to the topic to make the instruction more explicit.
-            const effectiveTopic = topic.trim()
-                ? `${topic.trim()}\n\nNombre de cartes demandées : ${numCards}.`
-                : topic;
-
             const params: { topic: string, numCards: number, file?: { mimeType: string, data: string }, guestId?: string } = {
-                topic: effectiveTopic,
+                topic: trimmedTopic,
                 numCards,
             };
 
@@ -85,12 +81,11 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
                 };
             }
             
-            const result = await generateFlashcards(params) as { data: { flashcards: GeneratedFlashcard[] } };
+            const result = await generateFlashcards(params) as { data: { flashcards: Flashcard[] } };
             
             if (result.data.flashcards && result.data.flashcards.length > 0) {
-                const limitedCards = result.data.flashcards.slice(0, 25);
-                setGeneratedCards(limitedCards);
-                if(!topic.trim() && file) {
+                setGeneratedCards(result.data.flashcards.slice(0, 25));
+                if(!trimmedTopic && file) {
                     setTopic(`Notes de ${file.name}`);
                 }
             } else {
@@ -98,8 +93,8 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
             }
         } catch (err) {
             console.error(err);
-            const firebaseError = err as { code?: string, message?: string };
-            setError(firebaseError.message || "Une erreur est survenue lors de la génération des cartes.");
+            const firebaseError = err as { message?: string };
+            setError(firebaseError.message || "Une erreur est survenue lors de la génération.");
         } finally {
             setIsLoading(false);
         }
@@ -108,7 +103,7 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
         if (selectedFile) {
-            if (selectedFile.size > 4 * 1024 * 1024) { // 4MB limit
+            if (selectedFile.size > 4 * 1024 * 1024) {
                 setError("La taille du fichier ne doit pas dépasser 4 Mo.");
                 return;
             }
@@ -126,13 +121,11 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
 
     const handleSaveDeck = async () => {
         if (!generatedCards || generatedCards.length === 0 || !topic.trim()) {
-            setError("Impossible de sauvegarder un paquet vide ou sans sujet.");
+            setError("Impossible de sauvegarder.");
             return;
         }
 
         setIsSaving(true);
-        setError(null);
-
         try {
             if (isGuest) {
                 saveGuestDeck(topic, generatedCards);
@@ -141,13 +134,12 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
             }
             onBack();
         } catch (err) {
-            console.error(err);
-            setError(err instanceof Error ? err.message : "Une erreur est survenue lors de la sauvegarde.");
+            setError(err instanceof Error ? err.message : "Erreur de sauvegarde.");
             setIsSaving(false);
         }
     };
 
-    const handleUpdateCard = (updatedCard: GeneratedFlashcard) => {
+    const handleUpdateCard = (updatedCard: Flashcard) => {
         if (editingCardIndex !== null && generatedCards) {
             const newCards = [...generatedCards];
             newCards[editingCardIndex] = updatedCard;
@@ -165,12 +157,8 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
     };
 
     const handleAddNewCard = () => {
-        if (generatedCards && generatedCards.length >= 25) {
-            setError("La limite de 25 cartes par paquet est atteinte.");
-            return;
-        }
-        setError(null); // Clear previous errors if any
-        const newCard: GeneratedFlashcard = { question: 'Nouvelle Question', answer: 'Nouvelle Réponse' };
+        if (generatedCards && generatedCards.length >= 25) return;
+        const newCard: Flashcard = { question: 'Nouvelle Question', answer: 'Nouvelle Réponse' };
         const newCards = [...(generatedCards || []), newCard];
         setGeneratedCards(newCards);
         setEditingCardIndex(newCards.length - 1);
@@ -184,12 +172,11 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
         setError(null);
     };
 
-
     if (isLoading) {
         return (
             <div className="text-center p-8 bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full">
                 <h2 className="text-2xl font-bold text-pink-500 dark:text-cyan-400 mb-4 animate-pulse">Génération en cours...</h2>
-                <p className="text-slate-600 dark:text-slate-300">Votre tuteur IA prépare vos flashcards. Cela peut prendre un moment.</p>
+                <p className="text-slate-600 dark:text-slate-300">Votre tuteur IA prépare vos flashcards.</p>
             </div>
         );
     }
@@ -205,25 +192,19 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
                             Recommencer
                         </button>
                         <button onClick={handleSaveDeck} disabled={isSaving} className="py-2 px-4 bg-pink-600 hover:bg-pink-700 dark:bg-cyan-600 dark:hover:bg-cyan-700 disabled:bg-slate-400 dark:disabled:bg-slate-600 text-white font-bold rounded-md transition-colors shadow-lg">
-                            {isSaving ? 'Sauvegarde...' : `Sauvegarder le Paquet (${generatedCards.length})`}
+                            {isSaving ? 'Sauvegarde...' : `Sauvegarder (${generatedCards.length})`}
                         </button>
                     </div>
                 </div>
                  <div className="mb-4">
-                    <div className="flex justify-between items-baseline mb-2">
-                        <label htmlFor="deck-topic" className="block text-sm font-medium text-slate-600 dark:text-slate-300">Sujet du paquet</label>
-                        <span className={`text-sm font-mono ${topic.length >= TOPIC_MAX_LENGTH ? 'text-red-500' : 'text-slate-500 dark:text-slate-500'}`}>
-                            {topic.length}/{TOPIC_MAX_LENGTH}
-                        </span>
-                    </div>
                     <input
                         id="deck-topic"
                         type="text"
                         value={topic}
                         onChange={(e) => setTopic(e.target.value)}
                         maxLength={TOPIC_MAX_LENGTH}
-                        className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md placeholder-slate-500 focus:ring-2 focus:ring-pink-500 dark:focus:ring-cyan-500 focus:border-pink-500 dark:focus:border-cyan-500 outline-none transition-all"
-                        placeholder="Ex: Capitales du Monde"
+                        className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md focus:ring-2 focus:ring-pink-500 dark:focus:ring-cyan-500 outline-none transition-all"
+                        placeholder="Sujet du paquet"
                     />
                 </div>
                 {error && <p className="text-red-500 mb-4 text-sm">{error}</p>}
@@ -243,11 +224,10 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
                     <button 
                         onClick={handleAddNewCard} 
                         disabled={generatedCards.length >= 25}
-                        className="flex flex-col items-center justify-center p-4 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-pink-500 dark:hover:border-cyan-500 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors text-slate-500 dark:text-slate-400 hover:text-pink-500 dark:hover:text-cyan-400 min-h-[150px] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-slate-300 dark:disabled:hover:border-slate-700 disabled:hover:bg-transparent"
+                        className="flex flex-col items-center justify-center p-4 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-pink-500 dark:hover:border-cyan-500 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors text-slate-500 dark:text-slate-400 hover:text-pink-500 dark:hover:text-cyan-400 min-h-[150px] disabled:opacity-50"
                     >
                         <PlusIcon className="w-8 h-8 mb-2" />
                         <span className="font-semibold">Ajouter une carte</span>
-                         {generatedCards.length >= 25 && <span className="text-xs text-slate-500 mt-1">(Limite atteinte)</span>}
                     </button>
                 </div>
                 
@@ -270,40 +250,29 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
                 Retour
             </button>
             <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700">
-                <h2 className="text-3xl font-bold mb-2">Créer un Paquet de Flashcards</h2>
-                <p className="text-slate-500 dark:text-slate-400 mb-6">Décrivez un sujet ou téléversez un document, et laissez l'IA faire le reste.</p>
+                <h2 className="text-3xl font-bold mb-2">Créer un Paquet</h2>
+                <p className="text-slate-500 dark:text-slate-400 mb-6">Décrivez un sujet ou téléversez un document.</p>
 
                 <form onSubmit={handleGenerate}>
                     <div className="mb-6">
-                        <div className="flex justify-between items-baseline mb-2">
-                            <label htmlFor="topic" className="block text-sm font-medium text-slate-600 dark:text-slate-300">
-                                Sujet
-                            </label>
-                             <span className={`text-sm font-mono ${topic.length >= TOPIC_MAX_LENGTH ? 'text-red-500' : 'text-slate-500 dark:text-slate-500'}`}>
-                                {topic.length}/{TOPIC_MAX_LENGTH}
-                            </span>
-                        </div>
                         <textarea
                             id="topic"
                             value={topic}
                             onChange={(e) => setTopic(e.target.value)}
                             maxLength={TOPIC_MAX_LENGTH}
-                            className="w-full h-24 px-4 py-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md placeholder-slate-500 focus:ring-2 focus:ring-pink-500 dark:focus:ring-cyan-500 focus:border-pink-500 dark:focus:border-cyan-500 outline-none transition-all"
-                            placeholder="Ex: La photosynthèse pour un débutant, les principaux événements de la Révolution française, ou les verbes irréguliers en anglais..."
+                            className="w-full h-24 px-4 py-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md focus:ring-2 focus:ring-pink-500 dark:focus:ring-cyan-500 outline-none transition-all"
+                            placeholder="Ex: La photosynthèse, la Révolution française..."
                         />
                     </div>
                     
                     <div className="text-center text-slate-500 mb-6 font-semibold">OU</div>
 
                      <div className="mb-6">
-                        <label htmlFor="file-upload" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
-                           Téléverser un fichier (PDF, TXT, etc.)
-                        </label>
                         <label className={`flex justify-center w-full h-32 px-4 transition bg-slate-100 dark:bg-slate-700 border-2 border-dashed rounded-md appearance-none cursor-pointer hover:border-pink-400 dark:hover:border-cyan-400 focus:outline-none ${file ? 'border-pink-500 dark:border-cyan-500' : 'border-slate-300 dark:border-slate-600'}`}>
                            <span className="flex items-center space-x-2">
                                 <UploadIcon className="w-6 h-6 text-slate-500 dark:text-slate-400" />
                                 <span className="font-medium text-slate-500 dark:text-slate-400">
-                                    {fileName ? fileName : 'Glissez-déposez ou cliquez pour téléverser'}
+                                    {fileName ? fileName : 'Glissez un fichier ou cliquez'}
                                 </span>
                            </span>
                            <input id="file-upload" type="file" name="file_upload" className="hidden" onChange={handleFileChange} accept=".pdf,.txt,.md,.docx,.pptx"/>
@@ -313,7 +282,7 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
 
                     <div className="mb-8">
                         <label htmlFor="num-cards" className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
-                            Nombre de cartes à générer : <span className="font-bold text-pink-600 dark:text-cyan-400">{numCards}</span>
+                            Nombre de cartes : <span className="font-bold text-pink-600 dark:text-cyan-400">{numCards}</span>
                         </label>
                         <input
                             type="range"
@@ -331,7 +300,7 @@ const SetupView: React.FC<SetupViewProps> = ({ onBack, isGuest, folderId }) => {
                     <button
                         type="submit"
                         disabled={isLoading || (!topic.trim() && !file)}
-                        className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-pink-600 hover:bg-pink-700 dark:bg-cyan-600 dark:hover:bg-cyan-700 disabled:bg-slate-400 dark:disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-bold rounded-md transition-colors shadow-lg"
+                        className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-pink-600 hover:bg-pink-700 dark:bg-cyan-600 dark:hover:bg-cyan-700 disabled:bg-slate-400 dark:disabled:bg-slate-600 text-white font-bold rounded-md transition-colors shadow-lg"
                     >
                         <RefreshIcon className={`w-6 h-6 ${isLoading ? 'animate-spin' : ''}`} />
                         {isLoading ? 'Génération...' : 'Générer les Flashcards'}

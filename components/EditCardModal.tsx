@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
-import { GeneratedFlashcard } from '../types';
+import { Flashcard } from '../types';
 import { TrashIcon } from './Icons';
 
 interface EditCardModalProps {
-  card: GeneratedFlashcard;
-  onSave: (updatedCard: GeneratedFlashcard) => void;
+  card: Flashcard;
+  onSave: (updatedCard: Flashcard) => void;
   onDelete: () => void;
   onCancel: () => void;
 }
@@ -26,7 +27,7 @@ const EditCardModal: React.FC<EditCardModalProps> = ({ card, onSave, onDelete, o
 
   return (
     <div className="fixed inset-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl p-8 transform transition-all">
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl p-8">
         <h2 className="text-2xl font-bold text-pink-600 dark:text-cyan-300 mb-6 text-left">Modifier la Flashcard</h2>
         
         <div className="mb-4">
@@ -37,8 +38,7 @@ const EditCardModal: React.FC<EditCardModalProps> = ({ card, onSave, onDelete, o
             id="edit-question"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            className="w-full h-32 px-4 py-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md placeholder-slate-500 focus:ring-2 focus:ring-pink-500 dark:focus:ring-cyan-500 focus:border-pink-500 dark:focus:border-cyan-500 outline-none transition-all"
-            spellCheck="true"
+            className="w-full h-32 px-4 py-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md outline-none transition-all"
           />
         </div>
 
@@ -50,8 +50,7 @@ const EditCardModal: React.FC<EditCardModalProps> = ({ card, onSave, onDelete, o
             id="edit-answer"
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
-            className="w-full h-32 px-4 py-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md placeholder-slate-500 focus:ring-2 focus:ring-pink-500 dark:focus:ring-cyan-500 focus:border-pink-500 dark:focus:border-cyan-500 outline-none transition-all"
-            spellCheck="true"
+            className="w-full h-32 px-4 py-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md outline-none transition-all"
           />
         </div>
 
@@ -59,7 +58,7 @@ const EditCardModal: React.FC<EditCardModalProps> = ({ card, onSave, onDelete, o
             <button
                 onClick={handleSave}
                 disabled={!question.trim() || !answer.trim()}
-                className="w-full sm:w-auto py-3 px-6 bg-pink-600 hover:bg-pink-700 dark:bg-cyan-600 dark:hover:bg-cyan-700 disabled:bg-slate-400 dark:disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-bold rounded-md transition-colors shadow-lg"
+                className="w-full sm:w-auto py-3 px-6 bg-pink-600 hover:bg-pink-700 dark:bg-cyan-600 dark:hover:bg-cyan-700 disabled:bg-slate-400 dark:disabled:bg-slate-600 text-white font-bold rounded-md transition-colors shadow-lg"
             >
                 Enregistrer
             </button>
@@ -73,14 +72,12 @@ const EditCardModal: React.FC<EditCardModalProps> = ({ card, onSave, onDelete, o
                  <button
                     onClick={onDelete}
                     className="w-full sm:w-auto flex items-center justify-center gap-2 py-3 px-4 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-500 font-medium rounded-md transition-colors"
-                    aria-label="Supprimer la carte"
                 >
                     <TrashIcon className="w-5 h-5" />
                     Supprimer
                 </button>
             </div>
         </div>
-
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineString } from "firebase-functions/params";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -28,6 +29,7 @@ const responseSchema = {
       answer: { type: Type.STRING },
     },
     required: ["question", "answer"],
+    propertyOrdering: ["question", "answer"],
   },
 };
 
@@ -47,23 +49,19 @@ async function checkAndRecordApiCall(identifier: string) {
 
     const data = doc.data();
     if (!data) {
-      // Si data est undefined, on crée le document
       transaction.set(docRef, { count: 1, expires: newExpiry });
       return;
     }
 
     if (now >= data.expires) {
-      // Le temps est écoulé, on réinitialise
       transaction.update(docRef, { count: 1, expires: newExpiry });
     } else if (data.count >= API_CALL_LIMIT) {
-      // Limite atteinte
       const resetsAt = new Date(data.expires).toLocaleTimeString("fr-FR");
       throw new HttpsError(
         "resource-exhausted",
         `Limite d'appels atteinte. Veuillez réessayer après ${resetsAt}.`,
       );
     } else {
-      // On incrémente
       transaction.update(docRef, { count: admin.firestore.FieldValue.increment(1) });
     }
   });
@@ -77,84 +75,67 @@ async function getSystemInstruction(isForFile: boolean, numCards: number): Promi
 
     if (!docSnap.exists) {
       console.error(`Prompt document not found: ${docId}`);
-      throw new HttpsError("not-found", `Le document de configuration du prompt '${docId}' est introuvable dans Firestore.`);
+      throw new HttpsError("not-found", `Le document de configuration '${docId}' est introuvable.`);
     }
 
     const data = docSnap.data();
-    // The prompt text is expected in a field named 'template'.
     const promptTemplate = data?.template as string;
 
-    if (!promptTemplate || typeof promptTemplate !== "string") {
-      console.error(`Invalid or missing 'template' field in document: ${docId}`);
-      throw new HttpsError("internal", `Le champ 'template' est manquant ou invalide dans le document de prompt '${docId}'. Assurez-vous qu'il existe et qu'il est de type 'string'.`);
+    if (!promptTemplate) {
+      throw new HttpsError("internal", `Le template de prompt '${docId}' est invalide.`);
     }
 
-    // Replace the placeholder for the number of cards.
     return promptTemplate.replace(/{{numCards}}/g, String(numCards));
   } catch (error) {
     console.error(`Error fetching system instruction '${docId}':`, error);
-    if (error instanceof HttpsError) {
-      throw error;
-    }
-    throw new HttpsError("internal", "Impossible de récupérer le prompt système.");
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "Impossible de récupérer les instructions de l'IA.");
   }
 }
-
 
 // --- Cloud Function Principale ---
 export const generateFlashcards = onCall(async (request) => {
   const ai = new GoogleGenAI({ apiKey: geminiApiKey.value() });
 
-  // Gérer l'identification pour les utilisateurs et les invités
   const userId = request.auth?.uid;
   const guestId = request.data.guestId as string | undefined;
 
   if (!userId && !guestId) {
     throw new HttpsError("unauthenticated", "Identification requise.");
   }
-  const identifier = userId || guestId as string;
+  const identifier = userId || (guestId as string);
 
-  // Valider les données d'entrée
   const { topic, numCards, file } = request.data as {
     topic: string,
     numCards: number,
     file?: { mimeType: string; data: string },
-    guestId?: string,
   };
 
-  if ((!topic || typeof topic !== "string" || topic.trim() === "") && !file) {
+  if ((!topic || topic.trim() === "") && !file) {
     throw new HttpsError("invalid-argument", "Un sujet ou un fichier est requis.");
   }
   if (typeof numCards !== "number" || numCards < 1 || numCards > 25) {
     throw new HttpsError("invalid-argument", "Le nombre de cartes doit être entre 1 et 25.");
   }
   if (file && !ALLOWED_MIME_TYPES.includes(file.mimeType)) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Type de fichier non autorisé. Seuls les fichiers PDF, TXT, MD, DOCX, et PPTX sont acceptés.",
-    );
+    throw new HttpsError("invalid-argument", "Type de fichier non autorisé.");
   }
 
-
-  // Appliquer la limitation de taux
   await checkAndRecordApiCall(identifier);
 
-  // Récupérer le prompt depuis Firestore
   const systemInstruction = await getSystemInstruction(!!file, numCards);
 
-  // Construire la requête pour Gemini
-  const parts: object[] = [];
-  if (topic.trim()) {
-    parts.push({ text: `Le sujet est : "${topic}".` });
+  const parts: any[] = [];
+  if (topic && topic.trim()) {
+    parts.push({ text: `SUJET : ${topic.trim()}` });
   }
   if (file?.mimeType && file?.data) {
     parts.push({ inlineData: { mimeType: file.mimeType, data: file.data } });
   }
 
-  // Appeler l'API Gemini
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-pro",
+      model: "gemini-3-flash-preview",
       contents: { parts },
       config: {
         systemInstruction,
@@ -166,13 +147,14 @@ export const generateFlashcards = onCall(async (request) => {
 
     const responseText = response.text;
     if (!responseText) {
-      throw new HttpsError("internal", "L'IA a retourné une réponse vide.");
+      throw new HttpsError("internal", "L'IA n'a pas pu générer de réponse.");
     }
+    
     const flashcards = JSON.parse(responseText.trim());
     return { flashcards };
   } catch (error) {
-    console.error("Erreur Gemini:", error);
-    if (error instanceof HttpsError) throw error; // Relancer les erreurs Https
+    console.error("Gemini Error:", error);
+    if (error instanceof HttpsError) throw error;
     throw new HttpsError("internal", "Erreur lors de la génération des flashcards.");
   }
 });
